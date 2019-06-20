@@ -12,6 +12,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
@@ -102,7 +103,10 @@ def build_model():
     }
 
     # perform grid search
-    cv = GridSearchCV(pipeline, param_grid=parameters, cv=3)
+    cv = GridSearchCV(pipeline,
+                      param_grid=parameters,
+                      cv=2,
+                      verbose=1)
 
     return cv
 
@@ -125,9 +129,12 @@ def evaluate_model(model, X_test, y_test, category_names):
 
     # display results for each category
     for i in range(0, len(category_names)):
-        print('-'*60)
+        print('-'*80)
         print('Result for: {}'.format(category_names[i]))
-        print(classification_report(y_test.iloc[:,i], y_pred.transpose()[i]))
+        df = pd.DataFrame(classification_report(y_test.iloc[:,i],
+                                    y_pred.transpose()[i],
+                                    output_dict=True))
+        print(df)
 
     # display best model parameters
     print("\nBest Parameters:", model.best_params_)
@@ -152,23 +159,23 @@ def save_model(model, model_filepath):
 def main():
     if len(sys.argv) == 3:
         database_filepath, model_filepath = sys.argv[1:]
-        print('Loading data...\n    DATABASE: {}'.format(database_filepath))
+        print('\nLoading data...\n    DATABASE: {}'.format(database_filepath))
         X, y, category_names = load_data(database_filepath)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-        print('Building model...')
+        print('\nBuilding model...')
         model = build_model()
 
-        print('Training model...')
+        print('\nTraining model...')
         model.fit(X_train, y_train)
 
-        print('Evaluating model...')
+        print('\nEvaluating model...')
         evaluate_model(model, X_test, y_test, category_names)
 
-        print('Saving model...\n    MODEL: {}'.format(model_filepath))
+        print('\nSaving model...\n    MODEL: {}'.format(model_filepath))
         save_model(model, model_filepath)
 
-        print('Trained model saved!')
+        print('\nTrained model saved!')
 
     else:
         print('Please provide the filepath of the disaster messages database '\
