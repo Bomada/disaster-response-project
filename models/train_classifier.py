@@ -2,6 +2,7 @@ import nltk
 nltk.download(['punkt', 'wordnet', 'stopwords'])
 
 import sys
+import numpy as np
 import pandas as pd
 import re
 import pickle
@@ -12,12 +13,12 @@ from nltk.stem.wordnet import WordNetLemmatizer
 
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from sklearn.pipeline import Pipeline
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
 
 
 def load_data(database_filepath):
@@ -86,27 +87,25 @@ def build_model():
     pipeline = Pipeline([
         ('vect', CountVectorizer(tokenizer=tokenize)),
         ('tfidf', TfidfTransformer()),
-        ('clf', MultiOutputClassifier(RandomForestClassifier()))
+        ('clf', MultiOutputClassifier(RandomForestClassifier(random_state=42)))
     ])
 
     # set parameters for grid search
     parameters = {
-        #'vect__ngram_range': ((1, 1), (1, 2)),
-        #'vect__max_df': (0.5, 0.75, 1.0),
-        #'vect__max_features': (None, 100, 400),
-        #'tfidf__use_idf': (True, False),
-        'clf__estimator__n_estimators': [1],
-        'clf__estimator__min_samples_split': [2],
-        'clf__estimator__random_state':[42],
-        'clf__estimator__n_jobs': [4],
-        'clf__estimator__verbose': [0]
+        'vect__ngram_range': ((1, 1), (1, 2)),
+        'tfidf__use_idf': (True, False),
+        'clf__estimator__n_estimators': [15, 20],
+        'clf__estimator__max_depth': [3, 5],
+        'clf__estimator__min_samples_leaf': [7, 9],
+        'clf__estimator__min_samples_split': [2, 3],
+        'clf__estimator__n_jobs': [4]
     }
 
     # perform grid search
     cv = GridSearchCV(pipeline,
                       param_grid=parameters,
-                      cv=2,
-                      verbose=1)
+                      cv=3,
+                      verbose=2)
 
     return cv
 
@@ -133,6 +132,7 @@ def evaluate_model(model, X_test, y_test, category_names):
         print('Result for: {}'.format(category_names[i]))
         df = pd.DataFrame(classification_report(y_test.iloc[:,i],
                                     y_pred.transpose()[i],
+                                    labels=np.unique(y_pred),
                                     output_dict=True))
         print(df)
 
