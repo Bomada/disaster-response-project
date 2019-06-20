@@ -131,9 +131,9 @@ def evaluate_model(model, X_test, y_test, category_names):
         print('-'*80)
         print('Result for: {}'.format(category_names[i]))
         df = pd.DataFrame(classification_report(y_test.iloc[:,i],
-                                    y_pred.transpose()[i],
-                                    labels=np.unique(y_pred),
-                                    output_dict=True))
+                                                y_pred.transpose()[i],
+                                                labels=np.unique(y_pred),
+                                                output_dict=True))
         print(df)
 
     # display best model parameters
