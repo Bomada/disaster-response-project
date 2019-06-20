@@ -1,41 +1,169 @@
+import nltk
+nltk.download(['punkt', 'wordnet', 'stopwords'])
+
 import sys
+import pandas as pd
+import re
+import pickle
+from sqlalchemy import create_engine
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem.wordnet import WordNetLemmatizer
+
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.multioutput import MultiOutputClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+from sklearn.pipeline import Pipeline
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 
 def load_data(database_filepath):
-    pass
+    """
+    Load data from SQLite database and split into features and target.
+
+    Arguments:
+    database_filepath -- path to location of database
+
+    Returns:
+    X -- features in the form of a message
+    y -- multiple target variables
+    category_names -- list of all target variable names
+    """
+    # load data from database
+    engine = create_engine('sqlite:///' + database_filepath)
+    df = pd.read_sql_table('message', con=engine)
+
+    # assign values
+    X = df['message']
+    y = df.drop(['id', 'message', 'original', 'genre'], axis=1)
+    category_names = y.columns
+
+    return X, y, category_names
 
 
 def tokenize(text):
-    pass
+    """
+    Apply case normalization, lemmatize and tokenize text.
+
+    Arguments:
+    text -- text in source format
+
+    Returns:
+    clean_tokens -- cleaned tokenized list
+    """
+    # normalize case and remove punctuation
+    text = re.sub(r"[^a-zA-Z0-9]", " ", text.lower())
+
+    # tokenize text
+    tokens = word_tokenize(text)
+
+    # lemmatize, remove stop words and whitespace
+    stop_words = stopwords.words("english")
+    lemmatizer = WordNetLemmatizer()
+    clean_tokens = []
+    for tok in tokens:
+        if tok not in stop_words:
+            clean_tok = lemmatizer.lemmatize(tok).strip()
+            clean_tokens.append(clean_tok)
+
+    return clean_tokens
 
 
 def build_model():
-    pass
+    """
+    Model that handles multi-output classification and use grid search.
+
+    Arguments:
+    None
+
+    Returns:
+    cv -- multi-output classification model
+    """
+    # define pipeline
+    pipeline = Pipeline([
+        ('vect', CountVectorizer(tokenizer=tokenize)),
+        ('tfidf', TfidfTransformer()),
+        ('clf', MultiOutputClassifier(RandomForestClassifier()))
+    ])
+
+    # set parameters for grid search
+    parameters = {
+        #'vect__ngram_range': ((1, 1), (1, 2)),
+        #'vect__max_df': (0.5, 0.75, 1.0),
+        #'vect__max_features': (None, 100, 400),
+        #'tfidf__use_idf': (True, False),
+        'clf__estimator__n_estimators': [1],
+        'clf__estimator__min_samples_split': [2],
+        'clf__estimator__random_state':[42],
+        'clf__estimator__n_jobs': [4],
+        'clf__estimator__verbose': [0]
+    }
+
+    # perform grid search
+    cv = GridSearchCV(pipeline, param_grid=parameters, cv=3)
+
+    return cv
 
 
-def evaluate_model(model, X_test, Y_test, category_names):
-    pass
+def evaluate_model(model, X_test, y_test, category_names):
+    """
+    Predict values and key metrics are presented for each category.
+
+    Arguments:
+    model -- classification model used for prediction
+    X_test -- features in the form of a message for test set
+    y_test -- multiple target variables for test set
+    category_names -- list of all target variable names
+
+    Returns:
+    None
+    """
+    # predict values
+    y_pred = model.predict(X_test)
+
+    # display results for each category
+    for i in range(0, len(category_names)):
+        print('-'*60)
+        print('Result for: {}'.format(category_names[i]))
+        print(classification_report(y_test.iloc[:,i], y_pred.transpose()[i]))
+
+    # display best model parameters
+    print("\nBest Parameters:", model.best_params_)
 
 
 def save_model(model, model_filepath):
-    pass
+    """
+    Save the model as a pickle file.
+
+    Arguments:
+    model -- classification model to be saved
+    model_filepath -- file path to save model as
+
+    Returns:
+    None
+    """
+    # save the model to disk
+    filename = model_filepath
+    pickle.dump(model, open(filename, 'wb'))
 
 
 def main():
     if len(sys.argv) == 3:
         database_filepath, model_filepath = sys.argv[1:]
         print('Loading data...\n    DATABASE: {}'.format(database_filepath))
-        X, Y, category_names = load_data(database_filepath)
-        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
-        
+        X, y, category_names = load_data(database_filepath)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
         print('Building model...')
         model = build_model()
-        
+
         print('Training model...')
-        model.fit(X_train, Y_train)
-        
+        model.fit(X_train, y_train)
+
         print('Evaluating model...')
-        evaluate_model(model, X_test, Y_test, category_names)
+        evaluate_model(model, X_test, y_test, category_names)
 
         print('Saving model...\n    MODEL: {}'.format(model_filepath))
         save_model(model, model_filepath)

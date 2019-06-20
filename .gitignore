@@ -16,3 +16,6 @@ github-*.zip
 /data/disaster_categories.csv
 /data/disaster_messages.csv
 /data/DisasterResponse.db
+
+# Model files
+/models/classifier.pkl
